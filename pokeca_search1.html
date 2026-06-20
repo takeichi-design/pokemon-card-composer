@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ポケカ 日本語名 → limitlesstcg リンク検索</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+h1 { color: #fbbf24; font-size: 1.25rem; text-align: center; }
+.subtitle { color: #64748b; font-size: 0.75rem; text-align: center; line-height: 1.7; }
+
+/* ── 入力エリア ── */
+.input-area {
+  width: 100%; max-width: 640px;
+  background: #1e293b;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.input-area label { font-size: 0.75rem; color: #94a3b8; letter-spacing: 0.05em; }
+textarea {
+  width: 100%;
+  height: 140px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 0.88rem;
+  padding: 12px;
+  resize: vertical;
+  line-height: 1.7;
+}
+textarea:focus { outline: none; border-color: #fbbf24; }
+textarea::placeholder { color: #334155; }
+
+.btn-run {
+  background: #fbbf24;
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 11px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-run:hover { background: #f59e0b; }
+
+/* ── 結果エリア ── */
+.results-area {
+  width: 100%; max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.result-card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.result-card.nomatch { border-left: 3px solid #ef4444; }
+.result-card.match   { border-left: 3px solid #22c55e; }
+
+.rc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rc-input {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #f1f5f9;
+}
+.rc-tag {
+  font-size: 0.62rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: bold;
+}
+.tag-ok  { background: #166534; color: #86efac; }
+.tag-no  { background: #7f1d1d; color: #fca5a5; }
+
+.rc-en { font-size: 0.78rem; color: #94a3b8; }
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  padding: 5px 11px;
+  font-size: 0.72rem;
+  color: #93c5fd;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.link-btn:hover { border-color: #3b82f6; color: #60a5fa; }
+.link-btn .icon { font-size: 0.8rem; }
+
+.no-result-hint {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+.manual-link {
+  color: #3b82f6;
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+.manual-link:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>🃏 ポケカ 日本語名 → Limitless リンク</h1>
+<p class="subtitle">
+  日本語でカード名を1行ずつ入力 → limitlesstcg.com の<br>
+  英語版カードページのリンクを自動生成します
+</p>
+
+<div class="input-area">
+  <label>▼ カード名を1行に1枚ずつ入力（SR・HR・SARなどのレアリティも書いてOK）</label>
+  <textarea id="input" placeholder="キバナSR
+シロナSR (ガブリアスがいる方)
+タケシのガッツSR
+レッドの挑戦SR
+グリーンの戦略SR
+ロケット団のサカキSR
+マツバの確信SR
+ダンデSR
+N (エヌ) SR
+カツラの一発勝負SR"></textarea>
+  <button class="btn-run" onclick="run()">🔍 リンクを生成する</button>
+</div>
+
+<div class="results-area" id="results"></div>
+
+<script>
+// ────────────────────────────────────────────────────────────────
+// カードDB：日本語名 → 英語名＋limitlesstcg検索クエリ情報
+// query: limitlesstcg の ?q= に渡すクエリ文字列
+// url:   直接カードページURLがわかる場合はそちらも
+// ────────────────────────────────────────────────────────────────
+const DB = [
+  // ── キバナ ──
+  {
+    jp: ['キバナ'],
+    en: 'Raihan',
+    variants: [
+      { label: 'Raihan SR (Silver Tempest TG27)',
+        url: 'https://limitlesstcg.com/cards/SIT/TG27' },
+      { label: 'Raihan SR (Evolving Skies 224)',
+        url: 'https://limitlesstcg.com/cards/EVS/224' },
+      { label: 'Raihan 全カード検索',
+        query: 'Raihan t:su lang:en' },
+    ]
+  },
+  // ── シロナ ──
+  {
+    jp: ['シロナ'],
+    en: 'Cynthia',
+    variants: [
+      { label: 'Cynthia SR (Ultra Prism 148) ※SM版',
+        url: 'https://limitlesstcg.com/cards/UPR/148',
+        hint: 'SM版・ポーズのみ' },
+      { label: 'Cynthia & Caitlin SR (Cosmic Eclipse 229) ※TT版',
+        url: 'https://limitlesstcg.com/cards/CEC/229' },
+      { label: 'Cynthia SR (Lost Origin TG24) ※ガブリアス版・Bレギュ',
+        url: 'https://limitlesstcg.com/cards/LOR/TG24',
+        hint: 'ガブリアスが後ろにいる方（Bレギュ）' },
+      { label: 'Cynthia 全カード検索',
+        query: 'Cynthia t:su lang:en' },
+    ]
+  },
+  // ── タケシのガッツ ──
+  {
+    jp: ['タケシのガッツ', 'タケシ'],
+    en: "Brock's Grit",
+    variants: [
+      { label: "Brock's Grit SR (Team Up 148)",
+        url: 'https://limitlesstcg.com/cards/TEU/148' },
+      { label: "Brock's Grit 全カード検索",
+        query: "Brock's Grit t:su lang:en" },
+    ]
+  },
+  // ── レッドの挑戦 ──
+  {
+    jp: ['レッドの挑戦', 'レッド'],
+    en: "Red's Challenge",
+    variants: [
+      { label: "Red's Challenge SR (Unbroken Bonds 213)",
+        url: 'https://limitlesstcg.com/cards/UNB/213' },
+      { label: "Red's Challenge 全カード検索",
+        query: "Red's Challenge t:su lang:en" },
+    ]
+  },
+  // ── グリーンの戦略 ──
+  {
+    jp: ['グリーンの戦略', 'グリーン'],
+    en: "Green's Exploration",
+    variants: [
+      { label: "Green's Exploration SR (Unbroken Bonds 209)",
+        url: 'https://limitlesstcg.com/cards/UNB/209' },
+      { label: "Green's Exploration 全カード検索",
+        query: "Green's Exploration t:su lang:en" },
+    ]
+  },
+  // ── ロケット団のサカキ ──
+  {
+    jp: ['ロケット団のサカキ', 'サカキ'],
+    en: "Team Rocket's Giovanni",
+    variants: [
+      { label: "Team Rocket's Giovanni SR (Destined Rivals 225) ※SV版",
+        url: 'https://limitlesstcg.com/cards/DRI/225' },
+      { label: "Team Rocket's Giovanni SAR (Destined Rivals 238)",
+        url: 'https://limitlesstcg.com/cards/DRI/238' },
+      { label: "Team Rocket's Giovanni 全カード検索",
+        query: "Giovanni t:su lang:en" },
+    ]
+  },
+  // ── マツバの確信 ──
+  {
+    jp: ['マツバの確信', 'マツバ'],
+    en: "Morty's Conviction",
+    variants: [
+      { label: "Morty's Conviction SR (Temporal Forces 201)",
+        url: 'https://limitlesstcg.com/cards/TEF/201' },
+      { label: "Morty's Conviction 全カード検索",
+        query: "Morty's Conviction t:su lang:en" },
+    ]
+  },
+  // ── ダンデ ──
+  {
+    jp: ['ダンデ'],
+    en: 'Leon',
+    variants: [
+      { label: 'Leon SR (Vivid Voltage TG29) ※Trainer Gallery',
+        url: 'https://limitlesstcg.com/cards/VIV/TG29' },
+      { label: 'Leon SR (Vivid Voltage 195)',
+        url: 'https://limitlesstcg.com/cards/VIV/195' },
+      { label: 'Leon 全カード検索',
+        query: 'Leon t:su lang:en' },
+    ]
+  },
+  // ── N (エヌ) ──
+  {
+    jp: ['N', 'エヌ', 'Ｎ'],
+    en: 'N',
+    variants: [
+      { label: 'N SR (Fates Collide 105)',
+        url: 'https://limitlesstcg.com/cards/FCO/105' },
+      { label: 'N SR (Noble Victories 101)',
+        url: 'https://limitlesstcg.com/cards/NVI/101' },
+      { label: 'N 全カード検索',
+        query: 'N t:su lang:en r:ur,sr' },
+    ]
+  },
+  // ── カツラの一発勝負 ──
+  {
+    jp: ['カツラの一発勝負', 'カツラ'],
+    en: "Blaine's Last Resort",
+    variants: [
+      { label: "Blaine's Last Stand SR (Dragon Majesty 69) ※英語タイトルは Last Stand",
+        url: 'https://limitlesstcg.com/cards/DRM/69' },
+      { label: "Blaine's Last Stand 全カード検索",
+        query: "Blaine t:su lang:en" },
+    ]
+  },
+  // ── ダイゴ ──
+  {
+    jp: ['ダイゴ'],
+    en: 'Steven',
+    variants: [
+      { label: 'Steven SR (Celestial Storm 152)',
+        url: 'https://limitlesstcg.com/cards/CES/152' },
+      { label: "Steven's Resolve SR (Celestial Storm 145)",
+        url: 'https://limitlesstcg.com/cards/CES/145' },
+      { label: 'Steven 全カード検索',
+        query: 'Steven t:su lang:en r:ur,sr' },
+    ]
+  },
+  // ── ワタル ──
+  {
+    jp: ['ワタル'],
+    en: 'Lance',
+    variants: [
+      { label: 'Lance SR (Silver Tempest TG28)',
+        url: 'https://limitlesstcg.com/cards/SIT/TG28' },
+      { label: 'Lance 全カード検索',
+        query: 'Lance t:su lang:en r:ur,sr' },
+    ]
+  },
+  // ── キハダ ──
+  {
+    jp: ['キハダ'],
+    en: 'Raihan',
+    variants: [
+      { label: 'Raihan (キバナ) 全カード',
+        query: 'Raihan t:su lang:en' },
+    ]
+  },
+  // ── ボタン ──
+  {
+    jp: ['ボタン'],
+    en: 'Poppy',
+    variants: [
+      { label: 'Poppy SR (Temporal Forces 197)',
+        url: 'https://limitlesstcg.com/cards/TEF/197' },
+      { label: 'Poppy 全カード検索',
+        query: 'Poppy t:su lang:en' },
+    ]
+  },
+  // ── ペパー ──
+  {
+    jp: ['ペパー'],
+    en: 'Arven',
+    variants: [
+      { label: 'Arven SAR (Obsidian Flames 229)',
+        url: 'https://limitlesstcg.com/cards/OBF/229' },
+      { label: 'Arven 全カード検索',
+        query: 'Arven t:su lang:en' },
+    ]
+  },
+  // ── ネモ ──
+  {
+    jp: ['ネモ'],
+    en: 'Nemona',
+    variants: [
+      { label: 'Nemona SAR (Scarlet & Violet 230)',
+        url: 'https://limitlesstcg.com/cards/SVI/230' },
+      { label: 'Nemona 全カード検索',
+        query: 'Nemona t:su lang:en' },
+    ]
+  },
+];
+
+// ────────────────────────────────────────────────────────────────
+// 検索ロジック
+// ────────────────────────────────────────────────────────────────
+function normalize(s) {
+  return s
+    .replace(/[　\s]+/g, '')
+    .replace(/[ＳＲＨＲＳＡＲＡＲＵＲＣＲＵＣＲＲ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/SR|HR|SAR|AR|UR|CSR|CHR|RR|R/gi, '')
+    .replace(/[()（）【】「」\[\]]/g, '')
+    .trim();
+}
+
+function findCard(line) {
+  const norm = normalize(line);
+  for (const card of DB) {
+    for (const jp of card.jp) {
+      if (norm.includes(jp) || jp.includes(norm)) return card;
+    }
+  }
+  return null;
+}
+
+function buildQuery(q) {
+  return `https://limitlesstcg.com/cards?q=${encodeURIComponent(q)}&display=images`;
+}
+
+// ────────────────────────────────────────────────────────────────
+// UI
+// ────────────────────────────────────────────────────────────────
+function run() {
+  const lines = document.getElementById('input').value
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  const out = document.getElementById('results');
+  out.innerHTML = '';
+
+  lines.forEach(line => {
+    const card = findCard(line);
+    const div = document.createElement('div');
+    div.className = 'result-card ' + (card ? 'match' : 'nomatch');
+
+    if (card) {
+      const linksHtml = card.variants.map(v => {
+        const href = v.url ? v.url : buildQuery(v.query);
+        const hint = v.hint ? `<span style="color:#64748b;margin-left:4px;font-size:0.65rem;">（${v.hint}）</span>` : '';
+        return `<a class="link-btn" href="${href}" target="_blank">
+          <span class="icon">🔗</span>${v.label}${hint}
+        </a>`;
+      }).join('');
+
+      div.innerHTML = `
+        <div class="rc-header">
+          <span class="rc-input">${line}</span>
+          <span class="rc-tag tag-ok">✓ 検出</span>
+        </div>
+        <div class="rc-en">英語名: <strong>${card.en}</strong></div>
+        <div class="links">${linksHtml}</div>
+      `;
+    } else {
+      // 未登録カード → 名前をそのまま使って検索URLを生成
+      const norm = normalize(line);
+      const fallbackQuery = `${norm} t:su lang:en`;
+      div.innerHTML = `
+        <div class="rc-header">
+          <span class="rc-input">${line}</span>
+          <span class="rc-tag tag-no">? 未登録</span>
+        </div>
+        <div class="no-result-hint">
+          DBに未登録ですが、以下のリンクで直接検索できます：
+        </div>
+        <div class="links">
+          <a class="link-btn" href="${buildQuery(norm + ' t:su lang:en')}" target="_blank">
+            <span class="icon">🔍</span>「${norm}」をサポートで検索
+          </a>
+          <a class="link-btn" href="${buildQuery(norm + ' lang:en')}" target="_blank">
+            <span class="icon">🔍</span>「${norm}」を全タイプで検索
+          </a>
+          <a class="link-btn" href="https://limitlesstcg.com/cards?q=${encodeURIComponent(norm)}&display=images" target="_blank">
+            <span class="icon">🌐</span>Limitlessで直接検索
+          </a>
+        </div>
+      `;
+    }
+    out.appendChild(div);
+  });
+}
+
+// Enterキーでも実行
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') run();
+});
+</script>
+
+</body>
+</html>

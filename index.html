@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ポケカ 2×2 合成ツール</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: #111827;
+  color: #e5e7eb;
+  min-height: 100vh;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+h1 { color: #fbbf24; font-size: 1.3rem; text-align: center; }
+.subtitle { color: #9ca3af; font-size: 0.78rem; text-align: center; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.drop-zone {
+  background: #1f2937;
+  border: 2px dashed #374151;
+  border-radius: 12px;
+  aspect-ratio: 3/4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+.drop-zone:hover, .drop-zone.over {
+  border-color: #fbbf24;
+  background: #1a2535;
+}
+.drop-zone input[type=file] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer;
+  width: 100%; height: 100%;
+  /* ×ボタンより後ろに置く */
+  z-index: 1;
+}
+.drop-zone .inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.drop-zone .num {
+  font-size: 1.5rem;
+  color: #fbbf24;
+  font-weight: bold;
+  line-height: 1;
+}
+.drop-zone .pos-label {
+  font-size: 0.62rem;
+  color: #6b7280;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+}
+.drop-zone .icon { font-size: 1.8rem; }
+.drop-zone .hint {
+  font-size: 0.62rem;
+  color: #4b5563;
+  text-align: center;
+  padding: 0 8px;
+}
+.drop-zone .preview {
+  position: absolute; inset: 0;
+  object-fit: contain;
+  width: 100%; height: 100%;
+  display: none;
+  background: #111827;
+}
+
+/* ✓ OK バッジ */
+.drop-zone .check {
+  position: absolute;
+  top: 6px; left: 6px;
+  background: #22c55e;
+  color: #fff;
+  font-size: 0.62rem;
+  padding: 2px 7px;
+  border-radius: 20px;
+  display: none;
+  font-weight: bold;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ── 1枚削除ボタン（×） ── */
+.btn-del-one {
+  position: absolute;
+  top: 5px; right: 5px;
+  width: 26px; height: 26px;
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: bold;
+  line-height: 26px;
+  text-align: center;
+  cursor: pointer;
+  display: none;        /* 画像があるときだけ表示 */
+  z-index: 4;           /* file inputより前面 */
+  transition: background 0.15s;
+  padding: 0;
+}
+.btn-del-one:hover { background: rgba(220, 38, 38, 1); }
+
+/* ── ボトムエリア ── */
+.bottom-area {
+  width: 100%; max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+#status {
+  font-size: 0.85rem;
+  color: #fbbf24;
+  min-height: 1.2em;
+  text-align: center;
+}
+
+.action-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+#dlBtn {
+  background: #fbbf24;
+  color: #111;
+  border: none;
+  border-radius: 8px;
+  padding: 13px 0;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  flex: 2;
+  display: none;
+  transition: background 0.15s;
+}
+#dlBtn:hover { background: #f59e0b; }
+#dlBtn:disabled { background: #78350f; color: #555; cursor: not-allowed; }
+
+/* 全削除ボタン */
+#clearAllBtn {
+  background: #374151;
+  color: #f87171;
+  border: 1.5px solid #ef4444;
+  border-radius: 8px;
+  padding: 13px 0;
+  font-size: 0.88rem;
+  font-weight: bold;
+  cursor: pointer;
+  flex: 1;
+  display: none;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+#clearAllBtn:hover { background: #4b1a1a; }
+
+.progress-wrap {
+  width: 100%;
+  background: #1f2937;
+  border-radius: 6px;
+  height: 6px;
+  display: none;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: #fbbf24;
+  width: 0%;
+  transition: width 0.3s;
+  border-radius: 6px;
+}
+</style>
+</head>
+<body>
+
+<h1>🃏 ポケカ 2×2 合成ツール</h1>
+<p class="subtitle">4枚の画像をドラッグ＆ドロップ（またはクリック）して読み込み → 2480×3508px で書き出し</p>
+
+<div class="grid">
+  <div class="drop-zone" id="zone0">
+    <input type="file" accept="image/*" onchange="loadFile(0, this)">
+    <img class="preview" id="prev0">
+    <span class="check" id="chk0">✓ OK</span>
+    <button class="btn-del-one" id="del0" onclick="clearOne(event, 0)">✕</button>
+    <div class="inner">
+      <span class="num">①</span>
+      <span class="pos-label">左上</span>
+      <span class="icon">🖼️</span>
+      <span class="hint">クリックまたは<br>ドロップ</span>
+    </div>
+  </div>
+
+  <div class="drop-zone" id="zone1">
+    <input type="file" accept="image/*" onchange="loadFile(1, this)">
+    <img class="preview" id="prev1">
+    <span class="check" id="chk1">✓ OK</span>
+    <button class="btn-del-one" id="del1" onclick="clearOne(event, 1)">✕</button>
+    <div class="inner">
+      <span class="num">②</span>
+      <span class="pos-label">右上</span>
+      <span class="icon">🖼️</span>
+      <span class="hint">クリックまたは<br>ドロップ</span>
+    </div>
+  </div>
+
+  <div class="drop-zone" id="zone2">
+    <input type="file" accept="image/*" onchange="loadFile(2, this)">
+    <img class="preview" id="prev2">
+    <span class="check" id="chk2">✓ OK</span>
+    <button class="btn-del-one" id="del2" onclick="clearOne(event, 2)">✕</button>
+    <div class="inner">
+      <span class="num">③</span>
+      <span class="pos-label">左下</span>
+      <span class="icon">🖼️</span>
+      <span class="hint">クリックまたは<br>ドロップ</span>
+    </div>
+  </div>
+
+  <div class="drop-zone" id="zone3">
+    <input type="file" accept="image/*" onchange="loadFile(3, this)">
+    <img class="preview" id="prev3">
+    <span class="check" id="chk3">✓ OK</span>
+    <button class="btn-del-one" id="del3" onclick="clearOne(event, 3)">✕</button>
+    <div class="inner">
+      <span class="num">④</span>
+      <span class="pos-label">右下</span>
+      <span class="icon">🖼️</span>
+      <span class="hint">クリックまたは<br>ドロップ</span>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-area">
+  <p id="status">4枚の画像を読み込んでください</p>
+  <div class="action-row">
+    <button id="dlBtn"       onclick="compose()">⬇️ 2480×3508px で書き出す</button>
+    <button id="clearAllBtn" onclick="clearAll()">🗑️ 全削除</button>
+  </div>
+  <div class="progress-wrap" id="progWrap">
+    <div class="progress-bar" id="progBar"></div>
+  </div>
+</div>
+
+<script>
+// ── レイアウト定数 ──────────────────────────────
+const CW = 2480, CH = 3508;
+const ML = 102, MT = 207, MR = 119, MB = 166, GAP = 2;
+const CARD_W = (CW - ML - MR - GAP) / 2;
+const CARD_H = (CH - MT - MB - GAP) / 2;
+const POS = [
+  [ML,              MT],
+  [ML + CARD_W + GAP, MT],
+  [ML,              MT + CARD_H + GAP],
+  [ML + CARD_W + GAP, MT + CARD_H + GAP],
+];
+
+const images = [null, null, null, null];
+
+// ── ドラッグ＆ドロップ ──────────────────────────
+for (let i = 0; i < 4; i++) {
+  const zone = document.getElementById('zone' + i);
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadFile(i, null, file);
+  });
+}
+
+// ── ファイル読み込み ────────────────────────────
+function loadFile(idx, input, file) {
+  const f = file || (input && input.files[0]);
+  if (!f) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      images[idx] = img;
+      document.getElementById('prev' + idx).src = e.target.result;
+      document.getElementById('prev' + idx).style.display = 'block';
+      document.getElementById('chk' + idx).style.display  = 'block';
+      document.getElementById('del' + idx).style.display  = 'block';
+      updateStatus();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+
+// ── 1枚削除 ────────────────────────────────────
+function clearOne(e, idx) {
+  e.stopPropagation(); // file input への伝播を止める
+  images[idx] = null;
+
+  const prev = document.getElementById('prev' + idx);
+  prev.src = '';
+  prev.style.display = 'none';
+  document.getElementById('chk' + idx).style.display = 'none';
+  document.getElementById('del' + idx).style.display = 'none';
+
+  // file input をリセット（同じファイルを再読み込みできるよう）
+  const zone = document.getElementById('zone' + idx);
+  const fileInput = zone.querySelector('input[type=file]');
+  fileInput.value = '';
+
+  updateStatus();
+}
+
+// ── 全削除 ─────────────────────────────────────
+function clearAll() {
+  for (let i = 0; i < 4; i++) clearOne({ stopPropagation: () => {} }, i);
+}
+
+// ── ステータス更新 ──────────────────────────────
+function updateStatus() {
+  const count = images.filter(Boolean).length;
+  const hasAny = count > 0;
+
+  document.getElementById('status').textContent =
+    count === 0 ? '4枚の画像を読み込んでください' :
+    count  < 4  ? `${count}/4 枚 読み込み済み` :
+                  '✅ 4枚完了！書き出せます';
+
+  document.getElementById('dlBtn').style.display       = count === 4 ? 'block' : 'none';
+  document.getElementById('clearAllBtn').style.display = hasAny      ? 'block' : 'none';
+}
+
+// ── Canvas 合成＆ダウンロード ───────────────────
+function fitCard(ctx, img, dx, dy, dw, dh) {
+  const scale = Math.min(dw / img.naturalWidth, dh / img.naturalHeight);
+  const nw = Math.round(img.naturalWidth  * scale);
+  const nh = Math.round(img.naturalHeight * scale);
+  ctx.drawImage(img, dx + (dw - nw) / 2, dy + (dh - nh) / 2, nw, nh);
+}
+
+function compose() {
+  const btn = document.getElementById('dlBtn');
+  btn.disabled = true;
+  document.getElementById('status').textContent = '合成中…';
+  document.getElementById('progWrap').style.display = 'block';
+  document.getElementById('progBar').style.width = '30%';
+
+  setTimeout(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width  = CW;
+    canvas.height = CH;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, CW, CH);
+
+    document.getElementById('progBar').style.width = '60%';
+
+    for (let i = 0; i < 4; i++) {
+      fitCard(ctx, images[i], POS[i][0], POS[i][1], CARD_W, CARD_H);
+    }
+
+    document.getElementById('progBar').style.width = '90%';
+
+    canvas.toBlob(blob => {
+      document.getElementById('progBar').style.width = '100%';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'pokemon_cards_2x2.png';
+      a.click();
+
+      setTimeout(() => {
+        document.getElementById('status').textContent = '✅ ダウンロード完了！';
+        document.getElementById('progWrap').style.display = 'none';
+        document.getElementById('progBar').style.width = '0%';
+        btn.disabled = false;
+      }, 500);
+    }, 'image/png');
+  }, 50);
+}
+</script>
+</body>
+</html>
